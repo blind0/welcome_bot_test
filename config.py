@@ -26,7 +26,7 @@ class ConfigWebhook:
 @dataclass
 class ConfigSettings:
     owner_id: int
-    chat_id: int
+    currency_token: str
     use_webhook: bool = False
     drop_pending_updates: bool = True
 

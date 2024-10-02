@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -7,19 +8,26 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.storage.redis import DefaultKeyBuilder, RedisStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-from config import Config, parse_config
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apschedule.update_usd_price import update_usd_price
 
-from testHandler import router
+from db import db_manager
+
+from config import Config, parse_config
+from arguments import parse_arguments
+
+from routers.hello import router
 
 
 async def on_startup(
     dispatcher: Dispatcher, bot: Bot, config: Config,
 ):
-    
+    #upd usd_rate
+    await update_usd_price(config)
+
     dispatcher.include_router(router)
 
     if config.settings.use_webhook:
@@ -67,17 +75,8 @@ async def on_shutdown(dispatcher: Dispatcher, bot: Bot, config: Config):
 
 async def main():
 
-    async def external_signal(request):
-        message_text = "батя заколлил"
-        chat_id = config.settings.chat_id
-        if chat_id and message_text:
-            await bot.send_message(chat_id, message_text)
-            return web.json_response({'status': 'ok', 'message': 'Message sent'})
-        return web.json_response({'status': 'error', 'message': 'Invalid request'}, status=400)
-
-
     logging.warning("Starting bot...")
-
+    arguments = parse_arguments()
     config = parse_config(arguments.config)
 
 
@@ -88,30 +87,30 @@ async def main():
     bot = Bot(token,default=DefaultBotProperties(parse_mode=ParseMode.HTML), **bot_settings)
 
     if config.storage.use_persistent_storage:
-        storage = RedisStorage(
-            redis=RedisStorage.from_url(config.storage.redis_url),
-            key_builder=DefaultKeyBuilder(with_destiny=True),
-        )
+        pass
     else:
         storage = MemoryStorage()
+
+    await db_manager.init("dbp.db")
+    await db_manager.create_schema()
 
     dp = Dispatcher(storage=storage)
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
     
-    #registry = DialogRegistry(dp)
+    scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
+    scheduler.add_job(update_usd_price, trigger="interval",  hours=1, kwargs={"config": config})
+    scheduler.start()
 
     context_kwargs = {"config": config, }
 
     if config.settings.use_webhook:
-        logging.getLogger("aiohttp.access").setLevel(logging.CRITICAL)
+        logging.getLogger("aiohttp.access").setLevel(logging.DEBUG)
 
         web_app = web.Application()
         SimpleRequestHandler(dispatcher=dp, bot=bot, **context_kwargs).register(
             web_app, path=config.webhook.path
         )
-
-        web_app.router.add_get("/call", external_signal)
 
         setup_application(web_app, dp, bot=bot, **context_kwargs)
 

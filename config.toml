@@ -1,0 +1,19 @@
+[bot]
+token = "7685287630:AAHaNc0s3tcm-duiUle9M0gOWNBVhJmktQI"
+
+[storage] # (Optional) Persistent FSM Storage for aiogram and aiogram_dialog, disabled by default
+use_persistent_storage = false # (Optional)
+# redis_url = "redis://user:password@host:port/db" # (Optional) Redis URL for FSM storage
+
+[webhook] # (Optional) Settings for Webhook, disabled by default
+port = 80
+url = "" # (Optional) Webhook URL
+path = "" # (Optional) Webhook URL path
+
+[settings]
+owner_id = 412416174
+currency_token = "3sjT77ZWDB1BXH1vt3JFgBFv0v2iMMnujbun"
+use_webhook = false # (Optional)
+drop_pending_updates = false
+
+[api]
